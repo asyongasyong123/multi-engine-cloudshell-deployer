@@ -5,9 +5,7 @@ set -euo pipefail
 # 🚀 GCP-XRAY MULTI-ENGINE DEPLOYER
 # ✅ ENGINES: OPENRESTY, ENVOY, HAPROXY
 # ✅ DYNAMIC SERVICE NAME WITH ENGINE SUFFIX
-# ✅ INTEGRATED DNS & ADBLOCK ROUTING
-# ✅ FLEXIBLE REGIONS & RESOURCE ALLOCATION
-# ✅ AUTO-SAVE CONFIGS TO FILE FOR EDITOR
+# ✅ FIX TTY INPUT FOR CURL / TINYURL PIPES
 # =========================================
 
 GREEN='\033[1;32m'
@@ -90,7 +88,7 @@ list_deployed_services() {
   fi
   
   echo -e "\n======================================"
-  read -p "Press [Enter] to return..."
+  read -p "Press [Enter] to return..." </dev/tty
 }
 
 # ==============================================
@@ -119,7 +117,7 @@ select_region() {
   echo "0) Enter custom region code"
   echo ""
 
-  read -p "Enter region number: " REGION_NUM
+  read -p "Enter region number: " REGION_NUM </dev/tty
 
   case $REGION_NUM in
     1) REGION="us-central1" ;;
@@ -134,7 +132,7 @@ select_region() {
     10) REGION="europe-west1" ;;
     11) REGION="europe-west4" ;;
     12) REGION="europe-west9" ;;
-    0) read -p "Type full region code: " REGION ;;
+    0) read -p "Type full region code: " REGION </dev/tty ;;
     *) echo -e "${YELLOW}⚠️ Invalid! Using us-central1${NC}"; REGION="us-central1" ;;
   esac
 
@@ -150,7 +148,7 @@ deploy_new_service() {
   PROJECT_ID="$(gcloud config get-value project 2>/dev/null)"
   if [ -z "$PROJECT_ID" ]; then
       echo -e "${RED}❌ No project set! Run: gcloud config set project YOUR_ID${NC}"
-      read -p "Press [Enter] to return..."
+      read -p "Press [Enter] to return..." </dev/tty
       return
   fi
 
@@ -159,15 +157,14 @@ deploy_new_service() {
   # ==============================================
   # 🎯 PROXY ENGINE SELECTOR
   # ==============================================
-  clear
-  echo -e "${CYAN}=========================================${NC}"
+  echo -e "\n${CYAN}=========================================${NC}"
   echo -e "${GREEN}          CHOOSE PROXY ENGINE${NC}"
   echo -e "${CYAN}=========================================${NC}"
   echo "1) OpenResty          - [Standard / Highly Reliable] ✅"
   echo "2) Envoy Proxy        - [High Performance / Cloud Native]"
   echo "3) HAProxy            - [Ultra Low Latency / Lightweight]"
   while true; do
-      read -p "Select Engine [1-3]: " ENGINE_CHOICE
+      read -p "Select Engine [1-3]: " ENGINE_CHOICE </dev/tty
       case $ENGINE_CHOICE in
           1) ENGINE="openresty"; echo -e "${GREEN}✅ Selected: OpenResty${NC}"; break ;;
           2) ENGINE="envoy"; echo -e "${GREEN}✅ Selected: Envoy Proxy${NC}"; break ;;
@@ -197,7 +194,7 @@ deploy_new_service() {
   echo -e "${YELLOW}Instance-Based = Stable, No Throttling${NC}"
   echo "1) Request-Based  |  2) Instance-Based"
   while true; do
-      read -p "Select [1-2]: " BILLING_CHOICE
+      read -p "Select [1-2]: " BILLING_CHOICE </dev/tty
       case $BILLING_CHOICE in
           1) BILLING_MODE="request"; BILLING_FLAG="--cpu-throttling"; break ;;
           2) BILLING_MODE="instance"; BILLING_FLAG="--no-cpu-throttling"; break ;;
@@ -211,14 +208,14 @@ deploy_new_service() {
   echo -e "${GREEN}1) AUTO PRESETS  |  Recommended${NC}"
   echo -e "${YELLOW}2) MANUAL SETUP  |  Full Memory & vCPU Range${NC}"
   while true; do
-      read -p "Select Mode [1-2]: " RES_MODE
+      read -p "Select Mode [1-2]: " RES_MODE </dev/tty
       case $RES_MODE in
           1)
               echo -e "\n${CYAN}--- AUTO PRESETS ---${NC}"
               echo "1) Basic:    1Gi RAM + 1 vCPU"
               echo "2) Balanced: 2Gi RAM + 2 vCPU ✅"
               echo "3) Turbo:    4Gi RAM + 2 vCPU (High Concurrency)"
-              read -p "Choose preset [1-3]: " AUTO_CHOICE
+              read -p "Choose preset [1-3]: " AUTO_CHOICE </dev/tty
               case $AUTO_CHOICE in
                   1) MEMORY="1Gi"; CPU="1"; CONCURRENCY="1000" ;;
                   2) MEMORY="2Gi"; CPU="2"; CONCURRENCY="1000" ;;
@@ -236,7 +233,7 @@ deploy_new_service() {
               echo "Select Memory:"
               echo "1) 256Mi   2) 512Mi   3) 1Gi   4) 2Gi"
               echo "5) 4Gi     6) 8Gi     7) 16Gi  8) Custom input"
-              read -p "Select Memory [1-8]: " MEM
+              read -p "Select Memory [1-8]: " MEM </dev/tty
               case $MEM in
                   1) MEMORY="256Mi" ;;
                   2) MEMORY="512Mi" ;;
@@ -245,31 +242,31 @@ deploy_new_service() {
                   5) MEMORY="4Gi" ;;
                   6) MEMORY="8Gi" ;;
                   7) MEMORY="16Gi" ;;
-                  8) read -p "Type custom memory (e.g. 512Mi, 4Gi, 32Gi): " MEMORY ;;
+                  8) read -p "Type custom memory (e.g. 512Mi, 4Gi, 32Gi): " MEMORY </dev/tty ;;
                   *) MEMORY="1Gi" ;;
               esac
 
               echo -e "\nSelect vCPU:"
               echo "1) 1 vCPU   2) 2 vCPU   3) 4 vCPU   4) 8 vCPU   5) Custom input"
-              read -p "Select vCPU [1-5]: " CPU_SEL
+              read -p "Select vCPU [1-5]: " CPU_SEL </dev/tty
               case $CPU_SEL in
                   1) CPU="1" ;;
                   2) CPU="2" ;;
                   3) CPU="4" ;;
                   4) CPU="8" ;;
-                  5) read -p "Type custom vCPU (e.g. 0.5, 1, 2, 4, 8): " CPU ;;
+                  5) read -p "Type custom vCPU (e.g. 0.5, 1, 2, 4, 8): " CPU </dev/tty ;;
                   *) CPU="1" ;;
               esac
 
-              read -p "Max Connections/Concurrency [Default: 1000]: " CONCURRENCY
+              read -p "Max Connections/Concurrency [Default: 1000]: " CONCURRENCY </dev/tty
               CONCURRENCY=${CONCURRENCY:-1000}
 
               TIMEOUT="3600"
 
-              read -p "Min Instances [Default: 0]: " MIN_INST
+              read -p "Min Instances [Default: 0]: " MIN_INST </dev/tty
               MIN_INST=${MIN_INST:-0}
 
-              read -p "Max Instances [Default: 1]: " MAX_INST
+              read -p "Max Instances [Default: 1]: " MAX_INST </dev/tty
               MAX_INST=${MAX_INST:-1}
 
               echo -e "${GREEN}✅ Custom Selected: $MEMORY RAM | $CPU vCPU | Max Inst: $MAX_INST${NC}"
@@ -281,8 +278,8 @@ deploy_new_service() {
 
   cd "$BUILD_DIR" || exit 1
 
-  # ✅ OPTIMIZED XRAY CONFIG (COMMON FOR ALL)
-  cat > config.json <<'EOF'
+  # ✅ OPTIMIZED XRAY CONFIG
+  cat> config.json <<'EOF'
 {
   "log": { "loglevel": "warning" },
   "dns": {
@@ -568,8 +565,8 @@ EOF
   TROJAN_LINK="trojan://gcp-xray@firebase-settings.crashlytics.com:443?type=ws&host=${DOMAIN}&headerType=none&path=%2Ftrojan-ws&security=tls&sni=firebase-settings.crashlytics.com#${CLOUD_RUN_SERVICE_NAME}"
   VLESS_LINK="vless://a1b2c3d4-5678-40ef-98ab-cdef01234567@firebaseremoteconfigrealtime.googleapis.com:443?encryption=none&type=ws&host=${DOMAIN}&headerType=none&path=%2Fvless-ws&security=tls&sni=firebaseremoteconfigrealtime.googleapis.com#${CLOUD_RUN_SERVICE_NAME}"
 
-  # 📁 AUTOMATIC SAVE TO FILE PARA SA EDITOR COPYING
-  cat <<EOF > "$HOME/configs.txt"
+  # 📁 AUTOMATIC SAVE TO FILE
+  cat <<EOF> "$HOME/configs.txt"
 === PROXY ENGINE: ${ENGINE^^} ===
 === TROJAN LINK ===
 $TROJAN_LINK
@@ -595,7 +592,7 @@ EOF
   echo "$VLESS_LINK"
   echo -e "${CYAN}=========================================${NC}"
 
-  read -p $'\nPress [Enter] to return to Main Menu...'
+  read -p $'\nPress [Enter] to return to Main Menu...' </dev/tty
 }
 
 # ==============================================
@@ -610,7 +607,7 @@ while true; do
   echo "2) List All Services & FULL DETAILS"
   echo "3) Exit Script"
   echo "======================================"
-  read -p "Select Option [1-3]: " MENU_CHOICE
+  read -p "Select Option [1-3]: " MENU_CHOICE </dev/tty
 
   case $MENU_CHOICE in
     1) deploy_new_service ;;
