@@ -4,6 +4,7 @@ set -euo pipefail
 # =========================================
 # 🚀 GCP-XRAY MULTI-ENGINE DEPLOYER
 # ✅ ENGINES: OPENRESTY, ENVOY, HAPROXY
+# ✅ DYNAMIC SERVICE NAME WITH ENGINE SUFFIX
 # ✅ INTEGRATED DNS & ADBLOCK ROUTING
 # ✅ FLEXIBLE REGIONS & RESOURCE ALLOCATION
 # ✅ AUTO-SAVE CONFIGS TO FILE FOR EDITOR
@@ -147,21 +148,6 @@ deploy_new_service() {
   select_region
 
   PROJECT_ID="$(gcloud config get-value project 2>/dev/null)"
-  RAND=$(openssl rand -hex 3)
-  CLOUD_RUN_SERVICE_NAME="gcp-xray-$RAND"
-  BUILD_DIR=$(mktemp -d)
-  trap 'rm -rf "$BUILD_DIR"' EXIT
-
-  clear
-  echo ""
-  echo -e "${CYAN}=========================================${NC}"
-  echo -e "${GREEN}🚀 GCP-XRAY DEPLOYER | MULTI-ENGINE SETUP${NC}"
-  echo -e "${CYAN}=========================================${NC}"
-  echo -e "${GREEN}✅ Project:${NC} $PROJECT_ID"
-  echo -e "${GREEN}✅ Region:${NC} $REGION"
-  echo -e "${GREEN}✅ Service Name:${NC} $CLOUD_RUN_SERVICE_NAME"
-  echo ""
-
   if [ -z "$PROJECT_ID" ]; then
       echo -e "${RED}❌ No project set! Run: gcloud config set project YOUR_ID${NC}"
       read -p "Press [Enter] to return..."
@@ -173,6 +159,7 @@ deploy_new_service() {
   # ==============================================
   # 🎯 PROXY ENGINE SELECTOR
   # ==============================================
+  clear
   echo -e "${CYAN}=========================================${NC}"
   echo -e "${GREEN}          CHOOSE PROXY ENGINE${NC}"
   echo -e "${CYAN}=========================================${NC}"
@@ -188,6 +175,21 @@ deploy_new_service() {
           *) echo -e "${RED}Enter 1, 2, or 3 only${NC}" ;;
       esac
   done
+
+  # 🏷️ DYNAMICALLY INCLUDE ENGINE IN SERVICE NAME
+  RAND=$(openssl rand -hex 3)
+  CLOUD_RUN_SERVICE_NAME="gcp-xray-${ENGINE}-${RAND}"
+  BUILD_DIR=$(mktemp -d)
+  trap 'rm -rf "$BUILD_DIR"' EXIT
+
+  echo ""
+  echo -e "${CYAN}=========================================${NC}"
+  echo -e "${GREEN}🚀 GCP-XRAY DEPLOYER | MULTI-ENGINE SETUP${NC}"
+  echo -e "${CYAN}=========================================${NC}"
+  echo -e "${GREEN}✅ Project:${NC} $PROJECT_ID"
+  echo -e "${GREEN}✅ Region:${NC} $REGION"
+  echo -e "${GREEN}✅ Service Name:${NC} $CLOUD_RUN_SERVICE_NAME"
+  echo ""
 
   echo -e "\n${CYAN}=========================================${NC}"
   echo -e "${GREEN}          BILLING MODE${NC}"
@@ -563,8 +565,8 @@ EOF
   CANONICAL_LINK="https://$DOMAIN"
 
   # 🔗 GENERATE RAW IMPORTABLE LINKS
-  TROJAN_LINK="trojan://gcp-xray@firebase-settings.crashlytics.com:443?type=ws&host=${DOMAIN}&headerType=none&path=%2Ftrojan-ws&security=tls&sni=firebase-settings.crashlytics.com#${CLOUD_RUN_SERVICE_NAME}-${ENGINE}"
-  VLESS_LINK="vless://a1b2c3d4-5678-40ef-98ab-cdef01234567@firebaseremoteconfigrealtime.googleapis.com:443?encryption=none&type=ws&host=${DOMAIN}&headerType=none&path=%2Fvless-ws&security=tls&sni=firebaseremoteconfigrealtime.googleapis.com#${CLOUD_RUN_SERVICE_NAME}-${ENGINE}"
+  TROJAN_LINK="trojan://gcp-xray@firebase-settings.crashlytics.com:443?type=ws&host=${DOMAIN}&headerType=none&path=%2Ftrojan-ws&security=tls&sni=firebase-settings.crashlytics.com#${CLOUD_RUN_SERVICE_NAME}"
+  VLESS_LINK="vless://a1b2c3d4-5678-40ef-98ab-cdef01234567@firebaseremoteconfigrealtime.googleapis.com:443?encryption=none&type=ws&host=${DOMAIN}&headerType=none&path=%2Fvless-ws&security=tls&sni=firebaseremoteconfigrealtime.googleapis.com#${CLOUD_RUN_SERVICE_NAME}"
 
   # 📁 AUTOMATIC SAVE TO FILE PARA SA EDITOR COPYING
   cat <<EOF > "$HOME/configs.txt"
