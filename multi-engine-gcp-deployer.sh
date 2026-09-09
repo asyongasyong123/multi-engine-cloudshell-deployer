@@ -72,6 +72,7 @@ list_deployed_services() {
       MIN_INST=$(echo "$DETAILS" | jq -r '.spec.template.spec.minInstances // "0"')
       MAX_INST=$(echo "$DETAILS" | jq -r '.spec.template.spec.maxInstances // "1"')
       CONCURRENCY=$(echo "$DETAILS" | jq -r '.spec.template.spec.containerConcurrency // "300"')
+      TIMEOUT=$(echo "$DETAILS" | jq -r '.spec.template.spec.timeoutSeconds // "300"')
 
       echo -e "${GREEN}=== SERVICE #$COUNT ===${NC}"
       echo "🔹 Name:         $NAME"
@@ -82,6 +83,7 @@ list_deployed_services() {
       echo "🔹 Billing:      $BILLING"
       echo "🔹 Instances:    Min $MIN_INST / Max $MAX_INST"
       echo "🔹 Connections:  Max $CONCURRENCY"
+      echo "🔹 Timeout:      ${TIMEOUT}s"
       echo ""
       ((COUNT++))
     done <<< "$SERVICES"
@@ -146,21 +148,6 @@ deploy_new_service() {
   select_region
 
   PROJECT_ID="$(gcloud config get-value project 2>/dev/null)"
-  RAND=$(openssl rand -hex 3)
-  CLOUD_RUN_SERVICE_NAME="gcp-xray-$RAND"
-  BUILD_DIR=$(mktemp -d)
-  trap 'rm -rf "$BUILD_DIR"' EXIT
-
-  clear
-  echo ""
-  echo -e "${CYAN}=========================================${NC}"
-  echo -e "${GREEN}🚀 GCP-XRAY DEPLOYER | MULTI-ENGINE SETUP${NC}"
-  echo -e "${CYAN}=========================================${NC}"
-  echo -e "${GREEN}✅ Project:${NC} $PROJECT_ID"
-  echo -e "${GREEN}✅ Region:${NC} $REGION"
-  echo -e "${GREEN}✅ Service Name:${NC} $CLOUD_RUN_SERVICE_NAME"
-  echo ""
-
   if [ -z "$PROJECT_ID" ]; then
       echo -e "${RED}❌ No project set! Run: gcloud config set project YOUR_ID${NC}"
       read -p "Press [Enter] to return..."
@@ -172,7 +159,7 @@ deploy_new_service() {
   # ==============================================
   # 🎯 PROXY ENGINE SELECTOR (WITH DISPLAY NAMES)
   # ==============================================
-  echo -e "${CYAN}=========================================${NC}"
+  echo -e "\n${CYAN}=========================================${NC}"
   echo -e "${GREEN}          CHOOSE PROXY ENGINE${NC}"
   echo -e "${CYAN}=========================================${NC}"
   echo "1) OpenResty          - [Standard / Highly Reliable] ✅"
@@ -187,6 +174,10 @@ deploy_new_service() {
           *) echo -e "${RED}Enter 1, 2, or 3 only${NC}" ;;
       esac
   done
+
+  # 🏷️ GENERATE SERVICE NAME WITH ENGINE INCLUDED
+  RAND=$(openssl rand -hex 3)
+  CLOUD_RUN_SERVICE_NAME="gcp-xray-${ENGINE}-$RAND"
 
   echo -e "\n${CYAN}=========================================${NC}"
   echo -e "${GREEN}          BILLING MODE${NC}"
@@ -217,15 +208,12 @@ deploy_new_service() {
               echo "3) Turbo:    4Gi RAM + 2 vCPU (High Concurrency)"
               read -p "Choose preset [1-3]: " AUTO_CHOICE
               case $AUTO_CHOICE in
-                  1) MEMORY="1Gi"; CPU="1"; CONCURRENCY="1000" ;;
-                  2) MEMORY="2Gi"; CPU="2"; CONCURRENCY="1000" ;;
-                  3) MEMORY="4Gi"; CPU="2"; CONCURRENCY="1000" ;;
-                  *) echo -e "${YELLOW}Using Balanced preset${NC}"; MEMORY="2Gi"; CPU="2"; CONCURRENCY="1000" ;;
+                  1) MEMORY="1Gi"; CPU="1" ;;
+                  2) MEMORY="2Gi"; CPU="2" ;;
+                  3) MEMORY="4Gi"; CPU="2" ;;
+                  *) echo -e "${YELLOW}Using Balanced preset${NC}"; MEMORY="2Gi"; CPU="2" ;;
               esac
-              TIMEOUT="3600"
-              MIN_INST="0"
-              MAX_INST="1"
-              echo -e "${GREEN}✅ Applied: $MEMORY | $CPU vCPU${NC}"
+              echo -e "${GREEN}✅ Applied Preset: $MEMORY | $CPU vCPU${NC}"
               break
               ;;
           2)
@@ -244,7 +232,7 @@ deploy_new_service() {
                   7) MEMORY="16Gi" ;;
                   8) read -p "Type custom memory (e.g. 512Mi, 4Gi, 32Gi): " MEMORY ;;
                   *) MEMORY="1Gi" ;;
-              esac
+              es
 
               echo -e "\nSelect vCPU:"
               echo "1) 1 vCPU   2) 2 vCPU   3) 4 vCPU   4) 8 vCPU   5) Custom input"
@@ -256,27 +244,50 @@ deploy_new_service() {
                   4) CPU="8" ;;
                   5) read -p "Type custom vCPU (e.g. 0.5, 1, 2, 4, 8): " CPU ;;
                   *) CPU="1" ;;
-              esac
+              es
 
-              read -p "Max Connections/Concurrency [Default: 1000]: " CONCURRENCY
-              CONCURRENCY=${CONCURRENCY:-1000}
-
-              TIMEOUT="3600"
-
-              read -p "Min Instances [Default: 0]: " MIN_INST
-              MIN_INST=${MIN_INST:-0}
-
-              read -p "Max Instances [Default: 1]: " MAX_INST
-              MAX_INST=${MAX_INST:-1}
-
-              echo -e "${GREEN}✅ Custom Selected: $MEMORY RAM | $CPU vCPU | Max Inst: $MAX_INST${NC}"
+              echo -e "${GREEN}✅ Custom Selected: $MEMORY RAM | $CPU vCPU${NC}"
               break
               ;;
           *) echo -e "${RED}Enter 1 or 2 only${NC}" ;;
       esac
   done
 
+  # ==============================================
+  # 🎚️ ADVANCED PERFORMANCE & SCALING CONFIG
+  # ==============================================
+  echo -e "\n${CYAN}=========================================${NC}"
+  echo -e "${GREEN}    PERFORMANCE & SCALING CONFIGURATION  ${NC}"
+  echo -e "${CYAN}=========================================${NC}"
+  read -p "Min Instances [Default: 0]: " MIN_INST
+  MIN_INST=${MIN_INST:-0}
+
+  read -p "Max Instances [Default: 1]: " MAX_INST
+  MAX_INST=${MAX_INST:-1}
+
+  read -p "Concurrency / Max Connections [Default: 1000]: " CONCURRENCY
+  CONCURRENCY=${CONCURRENCY:-1000}
+
+  read -p "Timeout in seconds [Default: 3600]: " TIMEOUT
+  TIMEOUT=${TIMEOUT:-3600}
+
+  echo -e "${GREEN}✅ Config Set: Min: $MIN_INST | Max: $MAX_INST | Concurrency: $CONCURRENCY | Timeout: ${TIMEOUT}s${NC}"
+
+  BUILD_DIR=$(mktemp -d)
+  trap 'rm -rf "$BUILD_DIR"' EXIT
   cd "$BUILD_DIR" || exit 1
+
+  clear
+  echo ""
+  echo -e "${CYAN}=========================================${NC}"
+  echo -e "${GREEN}🚀 GCP-XRAY DEPLOYER | MULTI-ENGINE SETUP${NC}"
+  echo -e "${CYAN}=========================================${NC}"
+  echo -e "${GREEN}✅ Project:${NC} $PROJECT_ID"
+  echo -e "${GREEN}✅ Region:${NC} $REGION"
+  echo -e "${GREEN}✅ Service Name:${NC} $CLOUD_RUN_SERVICE_NAME"
+  echo -e "${GREEN}✅ Scaling:${NC} Min: $MIN_INST | Max: $MAX_INST"
+  echo -e "${GREEN}✅ Performance:${NC} Concurrency: $CONCURRENCY | Timeout: ${TIMEOUT}s"
+  echo ""
 
   # ✅ OPTIMIZED XRAY CONFIG (COMMON FOR ALL)
   cat > config.json <<'EOF'
