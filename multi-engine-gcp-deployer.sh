@@ -6,7 +6,6 @@ set -euo pipefail
 # ✅ ENGINES: OPENRESTY, ENVOY, HAPROXY
 # ✅ INTEGRATED DNS & ADBLOCK ROUTING
 # ✅ FLEXIBLE REGIONS & RESOURCE ALLOCATION
-# ✅ AUTO-SAVE CONFIGS TO FILE FOR EDITOR
 # =========================================
 
 GREEN='\033[1;32m'
@@ -171,7 +170,7 @@ deploy_new_service() {
   gcloud services enable run.googleapis.com cloudbuild.googleapis.com --project="$PROJECT_ID" --quiet
 
   # ==============================================
-  # 🎯 PROXY ENGINE SELECTOR
+  # 🎯 PROXY ENGINE SELECTOR (WITH DISPLAY NAMES)
   # ==============================================
   echo -e "${CYAN}=========================================${NC}"
   echo -e "${GREEN}          CHOOSE PROXY ENGINE${NC}"
@@ -182,9 +181,9 @@ deploy_new_service() {
   while true; do
       read -p "Select Engine [1-3]: " ENGINE_CHOICE
       case $ENGINE_CHOICE in
-          1) ENGINE="openresty"; echo -e "${GREEN}✅ Selected: OpenResty${NC}"; break ;;
-          2) ENGINE="envoy"; echo -e "${GREEN}✅ Selected: Envoy Proxy${NC}"; break ;;
-          3) ENGINE="haproxy"; echo -e "${GREEN}✅ Selected: HAProxy${NC}"; break ;;
+          1) ENGINE="openresty"; DISPLAY_ENGINE="OpenResty"; echo -e "${GREEN}✅ Selected: OpenResty${NC}"; break ;;
+          2) ENGINE="envoy"; DISPLAY_ENGINE="Envoy Proxy"; echo -e "${GREEN}✅ Selected: Envoy Proxy${NC}"; break ;;
+          3) ENGINE="haproxy"; DISPLAY_ENGINE="HAProxy"; echo -e "${GREEN}✅ Selected: HAProxy${NC}"; break ;;
           *) echo -e "${RED}Enter 1, 2, or 3 only${NC}" ;;
       esac
   done
@@ -338,12 +337,15 @@ deploy_new_service() {
 }
 EOF
 
+  # 🎯 DYNAMIC DECOY INJECTED HERE
+  DECOY_HTML="<!DOCTYPE html><html><head><title>System Status</title><style>body{font-family:sans-serif;background:#0d1117;color:#c9d1d9;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;text-align:center;}h1{color:#58a6ff;font-size:24px;}p{color:#8b949e;}</style></head><body><div><h1>Welcome to my ${DISPLAY_ENGINE} cloud application gateway.</h1><p>Everything is operational.</p></div></body></html>"
+
   # ==============================================
   # ⚙️ GENERATE DYNAMIC PROXY CONFIG & DOCKERFILE
   # ==============================================
 
   if [ "$ENGINE" = "openresty" ]; then
-    cat > nginx.conf <<'EOF'
+    cat > nginx.conf <<EOF
 worker_processes auto;
 worker_rlimit_nofile 10240;
 events { worker_connections 4096; use epoll; multi_accept on; }
@@ -361,18 +363,18 @@ http {
     location /health { return 200 "OK\n"; add_header Content-Type text/plain; }
     location / {
       default_type text/html;
-      return 200 "<!DOCTYPE html><html><head><title>Active</title></head><body style='font-family:sans-serif;text-align:center;padding:50px;'><h1>Cloud Server is Active</h1><p>Everything is operational.</p></body></html>";
+      return 200 '${DECOY_HTML}';
     }
     location /trojan-ws {
       proxy_pass http://127.0.0.1:10001;
-      proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade";
-      proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header Upgrade \$http_upgrade; proxy_set_header Connection "upgrade";
+      proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr;
       proxy_read_timeout 3600s; proxy_send_timeout 3600s;
     }
     location /vless-ws {
       proxy_pass http://127.0.0.1:10002;
-      proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade";
-      proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header Upgrade \$http_upgrade; proxy_set_header Connection "upgrade";
+      proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr;
       proxy_read_timeout 3600s; proxy_send_timeout 3600s;
     }
   }
@@ -403,7 +405,7 @@ ENTRYPOINT ["/entrypoint.sh"]
 EOF
 
   elif [ "$ENGINE" = "envoy" ]; then
-    cat > envoy.yaml <<'EOF'
+    cat > envoy.yaml <<EOF
 static_resources:
   listeners:
   - name: listener_0
@@ -431,7 +433,7 @@ static_resources:
               - match: { prefix: "/vless-ws" }
                 route: { cluster: vless_cluster, timeout: 3600s, upgrade_configs: [{ upgrade_type: "websocket" }] }
               - match: { prefix: "/" }
-                direct_response: { status: 200, body: { inline_string: "<!DOCTYPE html><html><body><h1>Cloud Server Active</h1></body></html>" } }
+                direct_response: { status: 200, body: { inline_string: '${DECOY_HTML}' } }
           http_filters:
           - name: envoy.filters.http.router
             typed_config:
@@ -485,7 +487,7 @@ ENTRYPOINT ["/entrypoint.sh"]
 EOF
 
   elif [ "$ENGINE" = "haproxy" ]; then
-    cat > haproxy.cfg <<'EOF'
+    cat > haproxy.cfg <<EOF
 global
     log stdout format raw local0
     maxconn 10000
@@ -512,7 +514,7 @@ backend health_backend
     http-request return status 200 content-type "text/plain" string "OK\n"
 
 backend default_backend
-    http-request return status 200 content-type "text/html" string "<!DOCTYPE html><html><body><h1>Cloud Server Active</h1></body></html>"
+    http-request return status 200 content-type "text/html" string '${DECOY_HTML}'
 
 backend trojan_backend
     server xray1 127.0.0.1:10001
@@ -562,20 +564,6 @@ EOF
   DOMAIN=$(echo "$CLOUD_RUN_URL" | sed 's|https://||')
   CANONICAL_LINK="https://$DOMAIN"
 
-  # 🔗 GENERATE RAW IMPORTABLE LINKS
-  TROJAN_LINK="trojan://gcp-xray@firebase-settings.crashlytics.com:443?type=ws&host=${DOMAIN}&headerType=none&path=%2Ftrojan-ws&security=tls&sni=firebase-settings.crashlytics.com#${CLOUD_RUN_SERVICE_NAME}-${ENGINE}"
-  VLESS_LINK="vless://a1b2c3d4-5678-40ef-98ab-cdef01234567@firebaseremoteconfigrealtime.googleapis.com:443?encryption=none&type=ws&host=${DOMAIN}&headerType=none&path=%2Fvless-ws&security=tls&sni=firebaseremoteconfigrealtime.googleapis.com#${CLOUD_RUN_SERVICE_NAME}-${ENGINE}"
-
-  # 📁 AUTOMATIC SAVE TO FILE PARA SA EDITOR COPYING
-  cat <<EOF > "$HOME/configs.txt"
-=== PROXY ENGINE: ${ENGINE^^} ===
-=== TROJAN LINK ===
-$TROJAN_LINK
-
-=== VLESS LINK ===
-$VLESS_LINK
-EOF
-
   clear
   echo -e "\n${CYAN}=========================================${NC}"
   echo -e "${GREEN}✅ GCP-XRAY DEPLOYMENT SUCCESS! (${ENGINE^^})${NC}"
@@ -583,14 +571,6 @@ EOF
   echo -e "${GREEN}🔗 SHORT LINK:${NC} $CANONICAL_LINK"
   echo -e "${GREEN}🌐 FULL LINK:${NC} $DOMAIN"
   echo -e "${GREEN}💚 HEALTH CHECK:${NC} $CANONICAL_LINK/health"
-  echo -e "${YELLOW}📁 SAVED TO FILE:${NC} configs.txt (Open Cloud Shell Editor to copy easily)"
-  echo ""
-  echo -e "${CYAN}📋 GENERATED CONFIG LINKS FOR NETMOD:${NC}"
-  echo -e "${GREEN}🔹 TROJAN LINK:${NC}"
-  echo "$TROJAN_LINK"
-  echo ""
-  echo -e "${GREEN}🔹 VLESS LINK:${NC}"
-  echo "$VLESS_LINK"
   echo -e "${CYAN}=========================================${NC}"
 
   read -p $'\nPress [Enter] to return to Main Menu...'
