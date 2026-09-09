@@ -157,7 +157,7 @@ deploy_new_service() {
   gcloud services enable run.googleapis.com cloudbuild.googleapis.com --project="$PROJECT_ID" --quiet
 
   # ==============================================
-  # 🎯 PROXY ENGINE SELECTOR (WITH DISPLAY NAMES)
+  # 🎯 PROXY ENGINE SELECTOR
   # ==============================================
   echo -e "\n${CYAN}=========================================${NC}"
   echo -e "${GREEN}          CHOOSE PROXY ENGINE${NC}"
@@ -217,7 +217,7 @@ deploy_new_service() {
               break
               ;;
           2)
-              echo -e "\n${YELLOW}--- MANUAL SETUP (UNLOCKED ALL SPECS) ---${NC}"
+              echo -e "\n${YELLOW}--- MANUAL SETUP ---${NC}"
               echo "Select Memory:"
               echo "1) 256Mi   2) 512Mi   3) 1Gi   4) 2Gi"
               echo "5) 4Gi     6) 8Gi     7) 16Gi  8) Custom input"
@@ -230,9 +230,9 @@ deploy_new_service() {
                   5) MEMORY="4Gi" ;;
                   6) MEMORY="8Gi" ;;
                   7) MEMORY="16Gi" ;;
-                  8) read -p "Type custom memory (e.g. 512Mi, 4Gi, 32Gi): " MEMORY ;;
+                  8) read -p "Type custom memory: " MEMORY ;;
                   *) MEMORY="1Gi" ;;
-              es
+              esac
 
               echo -e "\nSelect vCPU:"
               echo "1) 1 vCPU   2) 2 vCPU   3) 4 vCPU   4) 8 vCPU   5) Custom input"
@@ -242,9 +242,9 @@ deploy_new_service() {
                   2) CPU="2" ;;
                   3) CPU="4" ;;
                   4) CPU="8" ;;
-                  5) read -p "Type custom vCPU (e.g. 0.5, 1, 2, 4, 8): " CPU ;;
+                  5) read -p "Type custom vCPU: " CPU ;;
                   *) CPU="1" ;;
-              es
+              esac
 
               echo -e "${GREEN}✅ Custom Selected: $MEMORY RAM | $CPU vCPU${NC}"
               break
@@ -253,9 +253,6 @@ deploy_new_service() {
       esac
   done
 
-  # ==============================================
-  # 🎚️ ADVANCED PERFORMANCE & SCALING CONFIG
-  # ==============================================
   echo -e "\n${CYAN}=========================================${NC}"
   echo -e "${GREEN}    PERFORMANCE & SCALING CONFIGURATION  ${NC}"
   echo -e "${CYAN}=========================================${NC}"
@@ -286,10 +283,9 @@ deploy_new_service() {
   echo -e "${GREEN}✅ Region:${NC} $REGION"
   echo -e "${GREEN}✅ Service Name:${NC} $CLOUD_RUN_SERVICE_NAME"
   echo -e "${GREEN}✅ Scaling:${NC} Min: $MIN_INST | Max: $MAX_INST"
-  echo -e "${GREEN}✅ Performance:${NC} Concurrency: $CONCURRENCY | Timeout: ${TIMEOUT}s"
+  echo -e "${GREEN}✅ Performance:${NC} Concurrency: $CONCURRENCY | Timeout: ${TIMEOUT}s${NC}"
   echo ""
 
-  # ✅ OPTIMIZED XRAY CONFIG (COMMON FOR ALL)
   cat > config.json <<'EOF'
 {
   "log": { "loglevel": "warning" },
@@ -348,12 +344,7 @@ deploy_new_service() {
 }
 EOF
 
-  # 🎯 DYNAMIC DECOY INJECTED HERE
-  DECOY_HTML="<!DOCTYPE html><html><head><title>System Status</title><style>body{font-family:sans-serif;background:#0d1117;color:#c9d1d9;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;text-align:center;}h1{color:#58a6ff;font-size:24px;}p{color:#8b949e;}</style></head><body><div><h1>Welcome to my ${DISPLAY_ENGINE} cloud application gateway.</h1><p>Everything is operational.</p></div></body></html>"
-
-  # ==============================================
-  # ⚙️ GENERATE DYNAMIC PROXY CONFIG & DOCKERFILE
-  # ==============================================
+  DECOY_HTML='<!DOCTYPE html><html><head><title>System Status</title><style>body{font-family:sans-serif;background:#0d1117;color:#c9d1d9;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;text-align:center;}h1{color:#58a6ff;font-size:24px;}p{color:#8b949e;}</style></head><body><div><h1>Welcome to my '"$DISPLAY_ENGINE"' cloud application gateway.</h1><p>Everything is operational.</p></div></body></html>'
 
   if [ "$ENGINE" = "openresty" ]; then
     cat > nginx.conf <<EOF
@@ -374,7 +365,7 @@ http {
     location /health { return 200 "OK\n"; add_header Content-Type text/plain; }
     location / {
       default_type text/html;
-      return 200 '${DECOY_HTML}';
+      return 200 '$DECOY_HTML';
     }
     location /trojan-ws {
       proxy_pass http://127.0.0.1:10001;
@@ -444,7 +435,7 @@ static_resources:
               - match: { prefix: "/vless-ws" }
                 route: { cluster: vless_cluster, timeout: 3600s, upgrade_configs: [{ upgrade_type: "websocket" }] }
               - match: { prefix: "/" }
-                direct_response: { status: 200, body: { inline_string: '${DECOY_HTML}' } }
+                direct_response: { status: 200, body: { inline_string: '$DECOY_HTML' } }
           http_filters:
           - name: envoy.filters.http.router
             typed_config:
@@ -525,7 +516,7 @@ backend health_backend
     http-request return status 200 content-type "text/plain" string "OK\n"
 
 backend default_backend
-    http-request return status 200 content-type "text/html" string '${DECOY_HTML}'
+    http-request return status 200 content-type "text/html" string '$DECOY_HTML'
 
 backend trojan_backend
     server xray1 127.0.0.1:10001
@@ -563,11 +554,11 @@ EOF
   gcloud builds submit --project="$PROJECT_ID" --tag gcr.io/$PROJECT_ID/$CLOUD_RUN_SERVICE_NAME . --quiet
 
   echo -e "${CYAN}🚀 Deploying to Cloud Run...${NC}"
-  gcloud run deploy $CLOUD_RUN_SERVICE_NAME \
+  gcloud run deploy "$CLOUD_RUN_SERVICE_NAME" \
     --image gcr.io/$PROJECT_ID/$CLOUD_RUN_SERVICE_NAME \
     --project="$PROJECT_ID" --platform managed --region "$REGION" --allow-unauthenticated \
-    --port 8080 --memory $MEMORY --cpu $CPU --concurrency $CONCURRENCY \
-    --timeout $TIMEOUT --min-instances $MIN_INST --max-instances $MAX_INST \
+    --port 8080 --memory "$MEMORY" --cpu "$CPU" --concurrency "$CONCURRENCY" \
+    --timeout "$TIMEOUT" --min-instances "$MIN_INST" --max-instances "$MAX_INST" \
     --session-affinity \
     --execution-environment gen2 $BILLING_FLAG --cpu-boost --quiet
 
@@ -587,9 +578,6 @@ EOF
   read -p $'\nPress [Enter] to return to Main Menu...'
 }
 
-# ==============================================
-# MAIN MENU
-# ==============================================
 while true; do
   clear
   echo "======================================"
@@ -608,4 +596,3 @@ while true; do
     *) echo -e "${RED}❌ Enter 1/2/3 only${NC}"; sleep 2 ;;
   esac
 done
-EOF
