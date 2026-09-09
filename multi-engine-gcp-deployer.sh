@@ -214,6 +214,12 @@ deploy_new_service() {
                   *) echo -e "${YELLOW}Using Balanced preset${NC}"; MEMORY="2Gi"; CPU="2" ;;
               esac
               echo -e "${GREEN}✅ Applied Preset: $MEMORY | $CPU vCPU${NC}"
+              
+              # Hardcoded scaling for Auto Presets
+              MIN_INST=1
+              MAX_INST=5
+              CONCURRENCY=200
+              TIMEOUT=3600
               break
               ;;
           2)
@@ -247,28 +253,29 @@ deploy_new_service() {
               esac
 
               echo -e "${GREEN}✅ Custom Selected: $MEMORY RAM | $CPU vCPU${NC}"
+
+              # Manual scaling configuration prompts
+              echo -e "\n${CYAN}=========================================${NC}"
+              echo -e "${GREEN}    PERFORMANCE & SCALING CONFIGURATION  ${NC}"
+              echo -e "${CYAN}=========================================${NC}"
+              read -p "Min Instances [Default: 0]: " MIN_INST
+              MIN_INST=${MIN_INST:-0}
+
+              read -p "Max Instances [Default: 1]: " MAX_INST
+              MAX_INST=${MAX_INST:-1}
+
+              read -p "Concurrency / Max Connections [Default: 1000]: " CONCURRENCY
+              CONCURRENCY=${CONCURRENCY:-1000}
+
+              read -p "Timeout in seconds [Default: 3600]: " TIMEOUT
+              TIMEOUT=${TIMEOUT:-3600}
+
+              echo -e "${GREEN}✅ Config Set: Min: $MIN_INST | Max: $MAX_INST | Concurrency: $CONCURRENCY | Timeout: ${TIMEOUT}s${NC}"
               break
               ;;
           *) echo -e "${RED}Enter 1 or 2 only${NC}" ;;
       esac
   done
-
-  echo -e "\n${CYAN}=========================================${NC}"
-  echo -e "${GREEN}    PERFORMANCE & SCALING CONFIGURATION  ${NC}"
-  echo -e "${CYAN}=========================================${NC}"
-  read -p "Min Instances [Default: 0]: " MIN_INST
-  MIN_INST=${MIN_INST:-0}
-
-  read -p "Max Instances [Default: 1]: " MAX_INST
-  MAX_INST=${MAX_INST:-1}
-
-  read -p "Concurrency / Max Connections [Default: 1000]: " CONCURRENCY
-  CONCURRENCY=${CONCURRENCY:-1000}
-
-  read -p "Timeout in seconds [Default: 3600]: " TIMEOUT
-  TIMEOUT=${TIMEOUT:-3600}
-
-  echo -e "${GREEN}✅ Config Set: Min: $MIN_INST | Max: $MAX_INST | Concurrency: $CONCURRENCY | Timeout: ${TIMEOUT}s${NC}"
 
   BUILD_DIR=$(mktemp -d)
   trap 'rm -rf "$BUILD_DIR"' EXIT
@@ -283,7 +290,7 @@ deploy_new_service() {
   echo -e "${GREEN}✅ Region:${NC} $REGION"
   echo -e "${GREEN}✅ Service Name:${NC} $CLOUD_RUN_SERVICE_NAME"
   echo -e "${GREEN}✅ Scaling:${NC} Min: $MIN_INST | Max: $MAX_INST"
-  echo -e "${GREEN}✅ Performance:${NC} Concurrency: $CONCURRENCY | Timeout: ${TIMEOUT}s${NC}"
+  echo -e "${GREEN}✅ Performance:${NC} Concurrency: $CONCURRENCY | Timeout: ${TIMEOUT}s"
   echo ""
 
   cat > config.json <<'EOF'
@@ -435,7 +442,13 @@ static_resources:
               - match: { prefix: "/vless-ws" }
                 route: { cluster: vless_cluster, timeout: 3600s, upgrade_configs: [{ upgrade_type: "websocket" }] }
               - match: { prefix: "/" }
-                direct_response: { status: 200, body: { inline_string: '$DECOY_HTML' } }
+                direct_response:
+                  status: 200
+                  body: { inline_string: '$DECOY_HTML' }
+                  response_headers_to_add:
+                  - header:
+                      key: "content-type"
+                      value: "text/html"
           http_filters:
           - name: envoy.filters.http.router
             typed_config:
