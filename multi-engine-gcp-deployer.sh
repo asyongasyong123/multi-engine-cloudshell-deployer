@@ -568,10 +568,10 @@ EOF
 
   clear
   echo -e "\n${CYAN}=========================================${NC}"
-  echo -e "${GREEN}✅ GCP-XRAY DEPLOYMENT SUCCESS! (${ENGINE^^})${NC}"
+  echo -e "${GREEN}✅ MULTI-ENGINE-GCP-XRAY DEPLOYMENT SUCCESS! (${ENGINE^^})${NC}"
   echo -e "${CYAN}=========================================${NC}"
   echo -e "${GREEN}🔗 SHORT LINK:${NC} $CANONICAL_LINK"
-  echo -e "${GREEN}🌐 FULL LINK:${NC} $DOMAIN"
+  echo -e "${GREEN}🌐 NETMOD HOST:${NC} $DOMAIN"
   echo -e "${GREEN}💚 HEALTH CHECK:${NC} $CANONICAL_LINK/health"
   echo -e "${CYAN}=========================================${NC}"
 
@@ -581,7 +581,7 @@ EOF
 while true; do
   clear
   echo "======================================"
-  echo "    GCP-XRAY DEPLOYER MENU    "
+  echo "  MULTI-ENGINE-GCP-XRAY DEPLOYER MENU    "
   echo "======================================"
   echo "1) Deploy New GCP-XRAY Service"
   echo "2) List All Services & FULL DETAILS"
