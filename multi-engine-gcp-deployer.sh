@@ -608,3 +608,4 @@ while true; do
     *) echo -e "${RED}❌ Enter 1/2/3 only${NC}"; sleep 2 ;;
   esac
 done
+EOF
