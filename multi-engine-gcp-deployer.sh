@@ -203,14 +203,14 @@ deploy_new_service() {
       case $RES_MODE in
           1)
               echo -e "\n${CYAN}--- AUTO PRESETS ---${NC}"
-              echo "1) Basic:    1Gi RAM + 1 vCPU"
-              echo "2) Balanced: 2Gi RAM + 2 vCPU ✅"
-              echo "3) Turbo:    4Gi RAM + 2 vCPU (High Concurrency)"
+              echo "1) Basic:    2Gi RAM + 1 vCPU"
+              echo "2) Balanced: 4Gi RAM + 2 vCPU ✅"
+              echo "3) Turbo:    8Gi RAM + 4 vCPU (High Concurrency)"
               read -p "Choose preset [1-3]: " AUTO_CHOICE
               case $AUTO_CHOICE in
-                  1) MEMORY="1Gi"; CPU="1" ;;
-                  2) MEMORY="2Gi"; CPU="2" ;;
-                  3) MEMORY="4Gi"; CPU="2" ;;
+                  1) MEMORY="2Gi"; CPU="1" ;;
+                  2) MEMORY="4Gi"; CPU="2" ;;
+                  3) MEMORY="8Gi"; CPU="4" ;;
                   *) echo -e "${YELLOW}Using Balanced preset${NC}"; MEMORY="2Gi"; CPU="2" ;;
               esac
               echo -e "${GREEN}✅ Applied Preset: $MEMORY | $CPU vCPU${NC}"
@@ -218,7 +218,7 @@ deploy_new_service() {
               # Hardcoded scaling for Auto Presets
               MIN_INST=1
               MAX_INST=5
-              CONCURRENCY=200
+              CONCURRENCY=150
               TIMEOUT=3600
               break
               ;;
@@ -305,7 +305,7 @@ deploy_new_service() {
       "0": {
         "handshake": 2,
         "connIdle": 3600,
-        "bufferSize": 1048576
+        "bufferSize": 524288
       }
     }
   },
