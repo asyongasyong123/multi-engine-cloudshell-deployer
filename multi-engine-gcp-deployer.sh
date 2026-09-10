@@ -352,6 +352,7 @@ deploy_new_service() {
 EOF
 
   DECOY_HTML='<!DOCTYPE html><html><head><title>System Status</title><style>body{font-family:sans-serif;background:#0d1117;color:#c9d1d9;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;text-align:center;}h1{color:#58a6ff;font-size:24px;}p{color:#8b949e;}</style></head><body><div><h1>Welcome to my Cloud Application Gateway.</h1><p>Everything is operational.</p></div></body></html>'
+  echo "$DECOY_HTML" > index.html
 
   if [ "$ENGINE" = "openresty" ]; then
     cat > nginx.conf <<EOF
@@ -415,6 +416,9 @@ EOF
 
   elif [ "$ENGINE" = "envoy" ]; then
     cat > envoy.yaml <<EOF
+admin:
+  address:
+    socket_address: { address: 127.0.0.1, port_value: 9901 }
 static_resources:
   listeners:
   - name: listener_0
@@ -442,18 +446,23 @@ static_resources:
               - match: { prefix: "/vless-ws" }
                 route: { cluster: vless_cluster, timeout: 3600s, upgrade_configs: [{ upgrade_type: "websocket" }] }
               - match: { prefix: "/" }
-                direct_response:
-                  status: 200
-                  body: { inline_string: '<!DOCTYPE html><html><head><title>System Status</title><style>body{font-family:sans-serif;background:#0d1117;color:#c9d1d9;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;text-align:center;}h1{color:#58a6ff;font-size:24px;}p{color:#8b949e;}</style></head><body><div><h1>Welcome to my Cloud Application Gateway.</h1><p>Everything is operational.</p></div></body></html>' }
-                  response_headers_to_add:
-                  - header:
-                      key: "content-type"
-                      value: "text/html"
+                route: { cluster: static_file_cluster }
           http_filters:
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
   clusters:
+  - name: static_file_cluster
+    connect_timeout: 0.25s
+    type: STATIC
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: static_file_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address: { address: 127.0.0.1, port_value: 8081 }
   - name: trojan_cluster
     connect_timeout: 10s
     type: STATIC
@@ -481,6 +490,8 @@ EOF
 #!/bin/sh
 /usr/local/bin/xray run -c /etc/xray.json &
 sleep 2
+python3 -m http.server 8081 --directory /var/www &
+sleep 1
 exec envoy -c /etc/envoy.yaml
 EOF
     chmod +x entrypoint.sh
@@ -490,11 +501,13 @@ FROM alpine:3.20 AS builder
 RUN apk add --no-cache curl unzip ca-certificates
 RUN curl -L https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -o xray.zip && unzip -q xray.zip xray geosite.dat geoip.dat && chmod +x xray
 FROM envoyproxy/envoy:v1.30-latest
+RUN apk add --no-cache python3
 COPY --from=builder /xray /usr/local/bin/xray
 COPY --from=builder /geosite.dat /usr/local/share/xray/
 COPY --from=builder /geoip.dat /usr/local/share/xray/
 COPY config.json /etc/xray.json
 COPY envoy.yaml /etc/envoy.yaml
+COPY index.html /var/www/index.html
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /usr/local/bin/xray /entrypoint.sh
 EXPOSE 8080
@@ -594,7 +607,7 @@ EOF
 while true; do
   clear
   echo "======================================"
-  echo "  MULTI-ENGINE-GCP-XRAY DEPLOYER MENU    "
+  echo "  MULTI-ENGINE-GCP DEPLOYER MENU    "
   echo "======================================"
   echo "1) Deploy New GCP-XRAY Service"
   echo "2) List All Services & FULL DETAILS"
