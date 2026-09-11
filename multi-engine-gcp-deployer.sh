@@ -5,7 +5,7 @@ set -euo pipefail
 # 🚀 GCP-XRAY MULTI-ENGINE DEPLOYER
 # ✅ ENGINES: OPENRESTY, ENVOY, HAPROXY
 # ✅ INTEGRATED DNS & ADBLOCK ROUTING
-# ✅ FLEXIBLE REGIONS & RESOURCE ALLOCATION
+# ✅ CUSTOM AUTO-PRESET SCALING & BILLING
 # =========================================
 
 GREEN='\033[1;32m'
@@ -180,49 +180,61 @@ deploy_new_service() {
   CLOUD_RUN_SERVICE_NAME="gcp-xray-${ENGINE}-$RAND"
 
   echo -e "\n${CYAN}=========================================${NC}"
-  echo -e "${GREEN}          BILLING MODE${NC}"
-  echo -e "${CYAN}=========================================${NC}"
-  echo -e "${YELLOW}Instance-Based = Stable, No Throttling${NC}"
-  echo "1) Request-Based  |  2) Instance-Based"
-  while true; do
-      read -p "Select [1-2]: " BILLING_CHOICE
-      case $BILLING_CHOICE in
-          1) BILLING_MODE="request"; BILLING_FLAG="--cpu-throttling"; break ;;
-          2) BILLING_MODE="instance"; BILLING_FLAG="--no-cpu-throttling"; break ;;
-          *) echo -e "${RED}Enter 1 or 2 only${NC}" ;;
-      esac
-  done
-
-  echo -e "\n${CYAN}=========================================${NC}"
   echo -e "${GREEN}      RESOURCE CONFIG MODE${NC}"
   echo -e "${CYAN}=========================================${NC}"
-  echo -e "${GREEN}1) AUTO PRESETS  |  Recommended${NC}"
-  echo -e "${YELLOW}2) MANUAL SETUP  |  Full Memory & vCPU Range${NC}"
+  echo -e "${GREEN}1) AUTO PRESETS  |  (Instance-Based + Preset Scaling)${NC}"
+  echo -e "${YELLOW}2) MANUAL SETUP  |  (Custom Billing & Resources)${NC}"
   while true; do
       read -p "Select Mode [1-2]: " RES_MODE
       case $RES_MODE in
           1)
+              # Auto Presets -> Matic Instance-Based
+              BILLING_MODE="instance"
+              BILLING_FLAG="--no-cpu-throttling"
+
               echo -e "\n${CYAN}--- AUTO PRESETS ---${NC}"
-              echo "1) Basic:    2Gi RAM + 1 vCPU"
-              echo "2) Balanced: 2Gi RAM + 2 vCPU ✅"
-              echo "3) Turbo:    4Gi RAM + 4 vCPU (High Concurrency)"
+              echo "1) Basic:    1Gi RAM + 1 vCPU (Min: 1 | Max: 3 | Concurrency: 80)"
+              echo "2) Balanced: 2Gi RAM + 2 vCPU (Min: 1 | Max: 5 | Concurrency: 100)"
+              echo "3) Turbo:    4Gi RAM + 4 vCPU (Min: 1 | Max: 5 | Concurrency: 200)"
               read -p "Choose preset [1-3]: " AUTO_CHOICE
               case $AUTO_CHOICE in
-                  1) MEMORY="2Gi"; CPU="1" ;;
-                  2) MEMORY="2Gi"; CPU="2" ;;
-                  3) MEMORY="4Gi"; CPU="4" ;;
-                  *) echo -e "${YELLOW}Using Balanced preset${NC}"; MEMORY="2Gi"; CPU="2" ;;
+                  1) 
+                      MEMORY="1Gi"; CPU="1"
+                      MIN_INST=1; MAX_INST=3; CONCURRENCY=80; TIMEOUT=3600
+                      ;;
+                  2) 
+                      MEMORY="2Gi"; CPU="2"
+                      MIN_INST=1; MAX_INST=5; CONCURRENCY=100; TIMEOUT=3600
+                      ;;
+                  3) 
+                      MEMORY="4Gi"; CPU="4"
+                      MIN_INST=1; MAX_INST=5; CONCURRENCY=200; TIMEOUT=3600
+                      ;;
+                  *) 
+                      echo -e "${YELLOW}Using Balanced preset default${NC}"
+                      MEMORY="2Gi"; CPU="2"
+                      MIN_INST=1; MAX_INST=5; CONCURRENCY=100; TIMEOUT=3600
+                      ;;
               esac
-              echo -e "${GREEN}✅ Applied Preset: $MEMORY | $CPU vCPU${NC}"
-              
-              # Hardcoded scaling for Auto Presets
-              MIN_INST=1
-              MAX_INST=5
-              CONCURRENCY=200
-              TIMEOUT=3600
+              echo -e "${GREEN}✅ Applied Preset: $MEMORY | $CPU vCPU | Min: $MIN_INST | Max: $MAX_INST | Concurrency: $CONCURRENCY${NC}"
               break
               ;;
           2)
+              # Manual Setup -> Prompt for Billing mode first
+              echo -e "\n${CYAN}=========================================${NC}"
+              echo -e "${GREEN}          BILLING MODE${NC}"
+              echo -e "${CYAN}=========================================${NC}"
+              echo -e "${YELLOW}Instance-Based = Stable, No Throttling${NC}"
+              echo "1) Request-Based  |  2) Instance-Based"
+              while true; do
+                  read -p "Select [1-2]: " BILLING_CHOICE
+                  case $BILLING_CHOICE in
+                      1) BILLING_MODE="request"; BILLING_FLAG="--cpu-throttling"; break ;;
+                      2) BILLING_MODE="instance"; BILLING_FLAG="--no-cpu-throttling"; break ;;
+                      *) echo -e "${RED}Enter 1 or 2 only${NC}" ;;
+                  esac
+              done
+
               echo -e "\n${YELLOW}--- MANUAL SETUP ---${NC}"
               echo "Select Memory:"
               echo "1) 256Mi   2) 512Mi   3) 1Gi   4) 2Gi"
@@ -238,7 +250,7 @@ deploy_new_service() {
                   7) MEMORY="16Gi" ;;
                   8) read -p "Type custom memory: " MEMORY ;;
                   *) MEMORY="1Gi" ;;
-              esac
+              es
 
               echo -e "\nSelect vCPU:"
               echo "1) 1 vCPU   2) 2 vCPU   3) 4 vCPU   4) 8 vCPU   5) Custom input"
@@ -283,9 +295,9 @@ deploy_new_service() {
 
   clear
   echo ""
-  echo -e "${CYAN}=========================================${NC}"
+  echo -e "${CYAN}==========================================${NC}"
   echo -e "${GREEN}🚀 GCP-XRAY DEPLOYER | MULTI-ENGINE SETUP${NC}"
-  echo -e "${CYAN}=========================================${NC}"
+  echo -e "${CYAN}==========================================${NC}"
   echo -e "${GREEN}✅ Project:${NC} $PROJECT_ID"
   echo -e "${GREEN}✅ Region:${NC} $REGION"
   echo -e "${GREEN}✅ Service Name:${NC} $CLOUD_RUN_SERVICE_NAME"
@@ -563,7 +575,7 @@ EOF
   echo -e "${CYAN}🔨 Building image ($ENGINE engine)...${NC}"
   gcloud builds submit --project="$PROJECT_ID" --tag gcr.io/$PROJECT_ID/$CLOUD_RUN_SERVICE_NAME . --quiet
 
-  echo -e "${CYAN}🚀 Deploying to Cloud Run...${NC}"
+  echo -e "${CYAN}🚀 Deploying to Cloud Run Wait Lang Idol🤭🤭🤭...${NC}"
   gcloud run deploy "$CLOUD_RUN_SERVICE_NAME" \
     --image gcr.io/$PROJECT_ID/$CLOUD_RUN_SERVICE_NAME \
     --project="$PROJECT_ID" --platform managed --region "$REGION" --allow-unauthenticated \
@@ -577,13 +589,13 @@ EOF
   CANONICAL_LINK="https://$DOMAIN"
 
   clear
-  echo -e "\n${CYAN}=========================================${NC}"
+  echo -e "\n${CYAN}=========================================================${NC}"
   echo -e "${GREEN}✅ MULTI-ENGINE-GCP-XRAY DEPLOYMENT SUCCESS! (${ENGINE^^})${NC}"
-  echo -e "${CYAN}=========================================${NC}"
+  echo -e "${CYAN}===========================================================${NC}"
   echo -e "${GREEN}🔗 SHORT LINK:${NC} $CANONICAL_LINK"
   echo -e "${GREEN}🌐 NETMOD HOST:${NC} $DOMAIN"
   echo -e "${GREEN}💚 HEALTH CHECK:${NC} $CANONICAL_LINK/health"
-  echo -e "${CYAN}=========================================${NC}"
+  echo -e "${CYAN}===========================================================${NC}"
 
   read -p $'\nPress [Enter] to return to Main Menu...'
 }
