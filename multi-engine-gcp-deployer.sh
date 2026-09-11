@@ -295,9 +295,9 @@ deploy_new_service() {
 
   clear
   echo ""
-  echo -e "${CYAN}==========================================${NC}"
+  echo -e "${CYAN}=========================================${NC}"
   echo -e "${GREEN}🚀 GCP-XRAY DEPLOYER | MULTI-ENGINE SETUP${NC}"
-  echo -e "${CYAN}==========================================${NC}"
+  echo -e "${CYAN}=========================================${NC}"
   echo -e "${GREEN}✅ Project:${NC} $PROJECT_ID"
   echo -e "${GREEN}✅ Region:${NC} $REGION"
   echo -e "${GREEN}✅ Service Name:${NC} $CLOUD_RUN_SERVICE_NAME"
@@ -575,7 +575,7 @@ EOF
   echo -e "${CYAN}🔨 Building image ($ENGINE engine)...${NC}"
   gcloud builds submit --project="$PROJECT_ID" --tag gcr.io/$PROJECT_ID/$CLOUD_RUN_SERVICE_NAME . --quiet
 
-  echo -e "${CYAN}🚀 Deploying to Cloud Run Wait Lang Idol🤭🤭🤭...${NC}"
+  echo -e "${CYAN}🚀 Deploying to Cloud Run...${NC}"
   gcloud run deploy "$CLOUD_RUN_SERVICE_NAME" \
     --image gcr.io/$PROJECT_ID/$CLOUD_RUN_SERVICE_NAME \
     --project="$PROJECT_ID" --platform managed --region "$REGION" --allow-unauthenticated \
@@ -589,13 +589,13 @@ EOF
   CANONICAL_LINK="https://$DOMAIN"
 
   clear
-  echo -e "\n${CYAN}=========================================================${NC}"
+  echo -e "\n${CYAN}=========================================${NC}"
   echo -e "${GREEN}✅ MULTI-ENGINE-GCP-XRAY DEPLOYMENT SUCCESS! (${ENGINE^^})${NC}"
-  echo -e "${CYAN}===========================================================${NC}"
+  echo -e "${CYAN}=========================================${NC}"
   echo -e "${GREEN}🔗 SHORT LINK:${NC} $CANONICAL_LINK"
   echo -e "${GREEN}🌐 NETMOD HOST:${NC} $DOMAIN"
   echo -e "${GREEN}💚 HEALTH CHECK:${NC} $CANONICAL_LINK/health"
-  echo -e "${CYAN}===========================================================${NC}"
+  echo -e "${CYAN}=========================================${NC}"
 
   read -p $'\nPress [Enter] to return to Main Menu...'
 }
